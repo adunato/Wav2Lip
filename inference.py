@@ -7,6 +7,8 @@ from glob import glob
 import torch, face_detection
 from models import Wav2Lip
 import platform
+from os import makedirs
+
 
 parser = argparse.ArgumentParser(description='Inference code to lip-sync videos in the wild using Wav2Lip models')
 
@@ -156,6 +158,11 @@ def datagen(frames, mels):
 mel_step_size = 16
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print('Using {} for inference.'.format(device))
+script_dir = os.path.dirname(os.path.realpath(__file__))
+temp_dir = os.path.join(script_dir, 'temp')
+if not os.path.exists(temp_dir):
+    os.makedirs(temp_dir)
+
 
 def _load(checkpoint_path):
 	if device == 'cuda':
@@ -216,10 +223,11 @@ def main():
 
 	if not args.audio.endswith('.wav'):
 		print('Extracting raw audio...')
-		command = 'ffmpeg -y -i {} -strict -2 {}'.format(args.audio, 'temp/temp.wav')
+		#command = 'ffmpeg -y -i {} -strict -2 {}'.format(args.audio, 'temp/temp.wav')
+		command = 'ffmpeg -y -i "{}" -strict -2 "{}"'.format(args.audio, os.path.join(temp_dir, 'temp.wav'))
 
 		subprocess.call(command, shell=True)
-		args.audio = 'temp/temp.wav'
+		args.audio = os.path.join(temp_dir, 'temp.wav')
 
 	wav = audio.load_wav(args.audio, 16000)
 	mel = audio.melspectrogram(wav)
@@ -253,7 +261,7 @@ def main():
 			print ("Model loaded")
 
 			frame_h, frame_w = full_frames[0].shape[:-1]
-			out = cv2.VideoWriter('temp/result.avi', 
+			out = cv2.VideoWriter(os.path.join(temp_dir, 'result.avi'), 
 									cv2.VideoWriter_fourcc(*'DIVX'), fps, (frame_w, frame_h))
 
 		img_batch = torch.FloatTensor(np.transpose(img_batch, (0, 3, 1, 2))).to(device)
@@ -273,7 +281,8 @@ def main():
 
 	out.release()
 
-	command = 'ffmpeg -y -i {} -i {} -strict -2 -q:v 1 {}'.format(args.audio, 'temp/result.avi', args.outfile)
+	#command = 'ffmpeg -y -i {} -i {} -strict -2 -q:v 1 {}'.format(args.audio, 'temp/result.avi', args.outfile)
+	command = 'ffmpeg -y -i "{}" -i "{}" -strict -2 -q:v 1 "{}"'.format(args.audio, os.path.join(temp_dir, 'result.avi'), args.outfile)
 	subprocess.call(command, shell=platform.system() != 'Windows')
 
 if __name__ == '__main__':
